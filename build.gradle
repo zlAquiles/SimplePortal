@@ -1,0 +1,50 @@
+plugins {
+    id "java-library"
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+group = "com.aquiles"
+version = "1.0.0"
+
+repositories {
+    mavenCentral()
+    maven {
+        url = "https://repo.papermc.io/repository/maven-public/"
+    }
+}
+
+dependencies {
+    compileOnly "io.papermc.paper:paper-api:1.19.4-R0.1-SNAPSHOT"
+    implementation "org.bstats:bstats-bukkit:3.1.0"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+    withJavadocJar()
+    withSourcesJar()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release = 17
+}
+
+processResources {
+    filteringCharset = "UTF-8"
+    filesMatching(["plugin.yml", "paper-plugin.yml"]) {
+        expand(
+            version: project.version,
+            name: rootProject.name
+        )
+    }
+}
+
+shadowJar {
+    archiveClassifier.set("")
+    relocate "org.bstats", "com.aquiles.simpleportals.libs.bstats"
+}
+
+build {
+    dependsOn shadowJar
+}

@@ -1,0 +1,20 @@
+# Gradle
+.gradle/
+.gradle-user-home/
+build/
+out/
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+
+# Logs
+*.log
+hs_err_pid*
+replay_pid*
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

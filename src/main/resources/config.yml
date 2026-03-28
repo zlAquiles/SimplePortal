@@ -1,0 +1,25 @@
+selector:
+  item:
+    material: GOLDEN_AXE
+    name: "&6Portal Selector"
+    lore:
+      - "&7Left click: set point 1"
+      - "&7Right click: set point 2"
+      - "&8Used by SimplePortals"
+  preview:
+    interval-ticks: 10
+    max-edge-points: 72
+
+commands:
+  show:
+    max-radius: 100
+
+portals:
+  default-trigger: WATER
+  default-cooldown-seconds: 0
+  reentry-protection-ticks: 20
+  # If enabled, empty blocks inside the selected region will be replaced with the trigger block when creating a portal.
+  replace-air: true
+
+update-check:
+  enabled: true

@@ -1,0 +1,46 @@
+name: ${name}
+version: ${version}
+main: com.aquiles.simpleportals.SimplePortalsPlugin
+api-version: "1.19"
+authors: [Aquiles]
+description: Simple and performant cuboid portals for Paper 1.19.4+
+folia-supported: true
+commands:
+  simpleportals:
+    description: Main command for SimplePortals
+    aliases: [portal]
+    usage: /<command> help
+permissions:
+  simpleportals.command.help:
+    description: View the help menu
+    default: true
+  simpleportals.command.create:
+    description: Create a portal definition
+    default: op
+  simpleportals.command.wand:
+    description: Receive a selector wand
+    default: op
+  simpleportals.command.reload:
+    description: Reload config and messages
+    default: op
+  simpleportals.command.show:
+    description: Show nearby portals
+    default: op
+  simpleportals.command.remove:
+    description: Remove a portal
+    default: op
+  simpleportals.command.setblock:
+    description: Change the trigger block of a portal
+    default: op
+  simpleportals.command.tp:
+    description: Teleport directly to a destination
+    default: op
+  simpleportals.command.destination.create:
+    description: Create a local destination
+    default: op
+  simpleportals.command.destination.remove:
+    description: Remove a destination
+    default: op
+  simpleportals.use:
+    description: Use SimplePortals portals
+    default: true

@@ -1,0 +1,7 @@
+name: ${name}
+version: ${version}
+main: com.aquiles.simpleportals.SimplePortalsPlugin
+api-version: "1.19"
+authors: [Aquiles]
+description: Simple and performant cuboid portals for Paper 1.19.4+
+folia-supported: true
