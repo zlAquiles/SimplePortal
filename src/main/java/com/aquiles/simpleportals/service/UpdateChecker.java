@@ -18,9 +18,7 @@ import org.bukkit.entity.Player;
 public final class UpdateChecker {
 
     private static final String UPDATE_URL = "https://gist.githubusercontent.com/zlAquiles/6820b13e81d7ee869ac638f013496417/raw/version.txt";
-    private static final String BUILTBYBIT_URL = "";
-    private static final String SPIGOT_URL = "";
-    private static final String MODRINTH_URL = "";
+    private static final String MODRINTH_URL = "https://modrinth.com/plugin/simpleportals-";
 
     private final SimplePortalsPlugin plugin;
     private final ConfigService configService;
@@ -57,7 +55,7 @@ public final class UpdateChecker {
                 updateAvailable.set(true);
 
                 compatibility.runGlobal(() -> {
-                    plugin.getLogger().info("A new update is available. Current version: " + currentVersion + " | Latest version: " + latestVersion);
+                    plugin.getLogger().info("Update available! (" + currentVersion + " -> " + latestVersion + ") " + MODRINTH_URL);
                     notifyOnlineStaffAboutUpdate();
                 });
             } catch (Exception exception) {
@@ -74,19 +72,12 @@ public final class UpdateChecker {
             return;
         }
 
-        List<String> lines = configService.messageLines("update-check.available", List.of(
-            "&8&m----------------------------------------",
-            "&8[&bSimplePortals&8] &eA new update is available.",
-            "&7Current version: &f%current_version%",
-            "&7Latest version: &f%latest_version%",
-            "&7Download: &b%link-bbb% &7- &6%link-spigot% &7- &a%link-modrinth%",
-            "&8&m----------------------------------------"
-        ),
+        List<String> lines = configService.messageLines(
+            "update-check.available",
+            List.of("&8[&bSimplePortals&8] &aUpdate available! &7(%current_version% &8-> &f%latest_version%&7) <click:open_url:'%download_url%'><aqua>[Download here]</aqua></click>"),
             "current_version", currentVersion,
             "latest_version", latestVersion,
-            "link-bbb", buildLinkText("BuiltByBit", BUILTBYBIT_URL),
-            "link-spigot", buildLinkText("Spigot", SPIGOT_URL),
-            "link-modrinth", buildLinkText("Modrinth", MODRINTH_URL)
+            "download_url", MODRINTH_URL
         );
         configService.sendLines(player, lines);
     }
@@ -99,13 +90,6 @@ public final class UpdateChecker {
         for (Player player : Bukkit.getOnlinePlayers()) {
             compatibility.runPlayer(player, () -> sendUpdateNotification(player));
         }
-    }
-
-    private String buildLinkText(String label, String url) {
-        if (url == null || url.isBlank()) {
-            return label;
-        }
-        return url;
     }
 
     private String fetchLatestVersion() throws IOException {

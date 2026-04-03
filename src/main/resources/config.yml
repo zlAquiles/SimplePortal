@@ -5,6 +5,7 @@ selector:
     lore:
       - "&7Left click: set point 1"
       - "&7Right click: set point 2"
+      - ""
       - "&8Used by SimplePortals"
   preview:
     interval-ticks: 10
