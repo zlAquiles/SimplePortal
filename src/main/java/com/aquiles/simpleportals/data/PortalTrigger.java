@@ -32,6 +32,10 @@ public enum PortalTrigger {
         };
     }
 
+    public boolean isFluid() {
+        return this == WATER || this == LAVA;
+    }
+
     public Material placementMaterial() {
         return switch (this) {
             case WATER -> Material.WATER;

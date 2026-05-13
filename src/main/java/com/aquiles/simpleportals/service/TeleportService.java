@@ -118,7 +118,8 @@ public final class TeleportService {
         }
 
         DestinationDefinition destination = portalStore.getDestination(portal.destinationName()).orElse(null);
-        if (destination == null) {
+        boolean commandOnly = destination == null && portal.destinationName().isBlank() && hasExecutableCommands(portal);
+        if (destination == null && !commandOnly) {
             configService.send(player, "errors.destination_missing", "destination", portal.destinationName());
             return false;
         }
@@ -127,6 +128,11 @@ public final class TeleportService {
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) {
             return false;
+        }
+
+        if (commandOnly) {
+            completePortalUse(player, portal, null, now);
+            return true;
         }
 
         if (!pendingTeleports.add(player.getUniqueId())) {
@@ -172,6 +178,11 @@ public final class TeleportService {
             portalCooldowns.computeIfAbsent(player.getUniqueId(), ignored -> new ConcurrentHashMap<>())
                 .put(portal.name().toLowerCase(Locale.ROOT), startedAt + (portal.cooldownSeconds() * 1000L));
         }
+    }
+
+    private boolean hasExecutableCommands(PortalDefinition portal) {
+        PortalDefinition.CommandAction commandAction = portal.actions().commands();
+        return commandAction.enabled() && !commandAction.commands().isEmpty();
     }
 
     private void sendDenyMessage(Player player, PortalDefinition portal) {

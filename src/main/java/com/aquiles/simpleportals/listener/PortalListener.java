@@ -3,12 +3,14 @@ package com.aquiles.simpleportals.listener;
 import com.aquiles.simpleportals.SimplePortalsPlugin;
 import com.aquiles.simpleportals.config.ConfigService;
 import com.aquiles.simpleportals.data.SelectionSession;
+import com.aquiles.simpleportals.service.PortalStore;
 import com.aquiles.simpleportals.service.SelectionService;
 import com.aquiles.simpleportals.service.TeleportService;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockFromToEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -19,17 +21,20 @@ public final class PortalListener implements Listener {
 
     private final SimplePortalsPlugin plugin;
     private final ConfigService configService;
+    private final PortalStore portalStore;
     private final SelectionService selectionService;
     private final TeleportService teleportService;
 
     public PortalListener(
         SimplePortalsPlugin plugin,
         ConfigService configService,
+        PortalStore portalStore,
         SelectionService selectionService,
         TeleportService teleportService
     ) {
         this.plugin = plugin;
         this.configService = configService;
+        this.portalStore = portalStore;
         this.selectionService = selectionService;
         this.teleportService = teleportService;
     }
@@ -77,6 +82,14 @@ public final class PortalListener implements Listener {
         event.setCancelled(true);
         event.setUseInteractedBlock(org.bukkit.event.Event.Result.DENY);
         event.setUseItemInHand(org.bukkit.event.Event.Result.DENY);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPortalFluidFlow(BlockFromToEvent event) {
+        if (!portalStore.isProtectedFluidBlock(event.getBlock())) {
+            return;
+        }
+        event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)

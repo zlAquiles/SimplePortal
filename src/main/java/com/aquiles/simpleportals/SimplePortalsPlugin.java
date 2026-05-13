@@ -73,7 +73,7 @@ public final class SimplePortalsPlugin extends JavaPlugin implements SimplePorta
             return;
         }
 
-        getServer().getPluginManager().registerEvents(new PortalListener(this, configService, selectionService, teleportService), this);
+        getServer().getPluginManager().registerEvents(new PortalListener(this, configService, portalStore, selectionService, teleportService), this);
         getServer().getServicesManager().register(SimplePortalsApi.class, this, this, ServicePriority.Normal);
 
         new Metrics(this, BSTATS_PLUGIN_ID);

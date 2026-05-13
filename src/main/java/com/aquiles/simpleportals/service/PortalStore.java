@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.bukkit.Location;
+import org.bukkit.block.Block;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -321,6 +322,16 @@ public final class PortalStore {
             return List.of();
         }
         return worldIndex.getOrDefault(chunkKey(location.getChunk().getX(), location.getChunk().getZ()), List.of());
+    }
+
+    public boolean isProtectedFluidBlock(Block block) {
+        if (block == null) {
+            return false;
+        }
+        return getPortalsInChunk(block.getLocation()).stream()
+            .filter(PortalDefinition::enabled)
+            .filter(portal -> portal.region().contains(block))
+            .anyMatch(portal -> portal.triggerBlocks().stream().anyMatch(PortalTrigger::isFluid));
     }
 
     public List<PortalDefinition> getNearbyPortals(Location location, double radius) {

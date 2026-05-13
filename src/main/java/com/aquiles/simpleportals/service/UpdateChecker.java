@@ -12,13 +12,17 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 public final class UpdateChecker {
 
-    private static final String UPDATE_URL = "https://gist.githubusercontent.com/zlAquiles/6820b13e81d7ee869ac638f013496417/raw/version.txt";
+    private static final String MODRINTH_PROJECT_ID = "QUxBPZJz";
+    private static final String MODRINTH_API_URL = "https://api.modrinth.com/v2/project/" + MODRINTH_PROJECT_ID + "/version?include_changelog=false";
     private static final String MODRINTH_URL = "https://modrinth.com/plugin/simpleportals-";
+    private static final Pattern VERSION_NUMBER_PATTERN = Pattern.compile("\\\"version_number\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
 
     private final SimplePortalsPlugin plugin;
     private final ConfigService configService;
@@ -34,7 +38,7 @@ public final class UpdateChecker {
     }
 
     public void checkForUpdatesAsync() {
-        if (!configService.updateCheckEnabled() || UPDATE_URL.isBlank()) {
+        if (!configService.updateCheckEnabled() || MODRINTH_PROJECT_ID.isBlank()) {
             return;
         }
 
@@ -93,11 +97,12 @@ public final class UpdateChecker {
     }
 
     private String fetchLatestVersion() throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL(UPDATE_URL).openConnection();
+        HttpURLConnection connection = (HttpURLConnection) new URL(MODRINTH_API_URL).openConnection();
         connection.setConnectTimeout(5000);
         connection.setReadTimeout(5000);
         connection.setRequestMethod("GET");
-        connection.setRequestProperty("User-Agent", "SimplePortals-UpdateChecker");
+        connection.setRequestProperty("User-Agent", "SimplePortals/" + plugin.getDescription().getVersion() + " (https://modrinth.com/plugin/simpleportals-)");
+        connection.setRequestProperty("Accept", "application/json");
 
         int responseCode = connection.getResponseCode();
         if (responseCode < 200 || responseCode >= 300) {
@@ -106,11 +111,27 @@ public final class UpdateChecker {
         }
 
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-            String line = reader.readLine();
-            return line == null ? "" : line.trim();
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                response.append(line);
+            }
+            return parseLatestVersion(response.toString());
         } finally {
             connection.disconnect();
         }
+    }
+
+    private String parseLatestVersion(String response) {
+        String latest = "";
+        Matcher matcher = VERSION_NUMBER_PATTERN.matcher(response);
+        while (matcher.find()) {
+            String candidate = matcher.group(1).trim();
+            if (!candidate.isEmpty() && (latest.isEmpty() || compareVersions(candidate, latest) > 0)) {
+                latest = candidate;
+            }
+        }
+        return latest;
     }
 
     private int compareVersions(String left, String right) {
