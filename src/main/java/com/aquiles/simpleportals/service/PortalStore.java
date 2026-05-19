@@ -334,6 +334,26 @@ public final class PortalStore {
             .anyMatch(portal -> portal.triggerBlocks().stream().anyMatch(PortalTrigger::isFluid));
     }
 
+    public boolean isFluidPortalBlock(Block block, PortalTrigger trigger) {
+        if (block == null || trigger == null || !trigger.isFluid()) {
+            return false;
+        }
+        return getPortalsInChunk(block.getLocation()).stream()
+            .filter(PortalDefinition::enabled)
+            .filter(portal -> portal.region().contains(block))
+            .anyMatch(portal -> portal.triggerBlocks().contains(trigger));
+    }
+
+    public boolean isInsideFluidPortal(Location location, PortalTrigger trigger) {
+        if (location == null || location.getWorld() == null || trigger == null || !trigger.isFluid()) {
+            return false;
+        }
+        return getPortalsInChunk(location).stream()
+            .filter(PortalDefinition::enabled)
+            .filter(portal -> portal.region().contains(location))
+            .anyMatch(portal -> portal.triggerBlocks().contains(trigger));
+    }
+
     public List<PortalDefinition> getNearbyPortals(Location location, double radius) {
         double radiusSquared = radius * radius;
         return portals.values().stream()

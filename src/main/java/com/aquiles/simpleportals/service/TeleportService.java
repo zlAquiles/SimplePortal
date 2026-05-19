@@ -5,6 +5,7 @@ import com.aquiles.simpleportals.api.event.SimplePortalUseEvent;
 import com.aquiles.simpleportals.config.ConfigService;
 import com.aquiles.simpleportals.data.DestinationDefinition;
 import com.aquiles.simpleportals.data.PortalDefinition;
+import com.aquiles.simpleportals.data.PortalTrigger;
 import com.aquiles.simpleportals.util.ServerCompatibility;
 import com.aquiles.simpleportals.util.Text;
 import java.io.ByteArrayOutputStream;
@@ -130,6 +131,7 @@ public final class TeleportService {
             return false;
         }
 
+        clearLavaPortalFire(player, portal);
         if (commandOnly) {
             completePortalUse(player, portal, null, now);
             return true;
@@ -171,6 +173,7 @@ public final class TeleportService {
     }
 
     private void completePortalUse(Player player, PortalDefinition portal, DestinationDefinition destination, long startedAt) {
+        clearLavaPortalFire(player, portal);
         executeCommands(player, portal, destination);
         applyFeedback(player, portal, destination);
         protectFromImmediateReentry(player);
@@ -183,6 +186,12 @@ public final class TeleportService {
     private boolean hasExecutableCommands(PortalDefinition portal) {
         PortalDefinition.CommandAction commandAction = portal.actions().commands();
         return commandAction.enabled() && !commandAction.commands().isEmpty();
+    }
+
+    private void clearLavaPortalFire(Player player, PortalDefinition portal) {
+        if (portal.triggerBlocks().contains(PortalTrigger.LAVA)) {
+            player.setFireTicks(0);
+        }
     }
 
     private void sendDenyMessage(Player player, PortalDefinition portal) {
