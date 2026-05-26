@@ -1,12 +1,13 @@
 package com.aquiles.simpleportals.data;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.bukkit.Location;
 
 public final class SelectionSession {
 
     private boolean selectorEnabled;
-    private Location pos1;
-    private Location pos2;
+    private final List<Location> positions = new ArrayList<>();
     private long lastSelectionAt;
 
     public boolean isSelectorEnabled() {
@@ -17,20 +18,47 @@ public final class SelectionSession {
         this.selectorEnabled = selectorEnabled;
     }
 
-    public Location getPos1() {
-        return pos1;
+    public int addPosition(Location position) {
+        for (int index = 0; index < positions.size(); index++) {
+            Location existing = positions.get(index);
+            if (sameBlock(existing, position)) {
+                positions.set(index, position);
+                return index + 1;
+            }
+        }
+        positions.add(position);
+        return positions.size();
     }
 
-    public void setPos1(Location pos1) {
-        this.pos1 = pos1;
+    public int removePosition(Location position) {
+        for (int index = 0; index < positions.size(); index++) {
+            Location existing = positions.get(index);
+            if (sameBlock(existing, position)) {
+                positions.remove(index);
+                return index + 1;
+            }
+        }
+        return 0;
     }
 
-    public Location getPos2() {
-        return pos2;
+    public List<Location> getPositions() {
+        return positions.stream().map(Location::clone).toList();
     }
 
-    public void setPos2(Location pos2) {
-        this.pos2 = pos2;
+    public int positionCount() {
+        return positions.size();
+    }
+
+    public boolean hasWorldMismatch() {
+        if (positions.size() < 2) {
+            return false;
+        }
+        Location first = positions.get(0);
+        if (first.getWorld() == null) {
+            return true;
+        }
+        String worldName = first.getWorld().getName();
+        return positions.stream().anyMatch(position -> position.getWorld() == null || !position.getWorld().getName().equalsIgnoreCase(worldName));
     }
 
     public long getLastSelectionAt() {
@@ -42,12 +70,20 @@ public final class SelectionSession {
     }
 
     public void clearSelection() {
-        this.pos1 = null;
-        this.pos2 = null;
+        positions.clear();
         this.lastSelectionAt = 0L;
     }
 
     public boolean hasSelection() {
-        return pos1 != null || pos2 != null;
+        return !positions.isEmpty();
+    }
+
+    private boolean sameBlock(Location first, Location second) {
+        return first.getWorld() != null
+            && second.getWorld() != null
+            && first.getWorld().getName().equalsIgnoreCase(second.getWorld().getName())
+            && first.getBlockX() == second.getBlockX()
+            && first.getBlockY() == second.getBlockY()
+            && first.getBlockZ() == second.getBlockZ();
     }
 }

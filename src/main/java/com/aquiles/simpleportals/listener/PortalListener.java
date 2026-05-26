@@ -64,25 +64,36 @@ public final class PortalListener implements Listener {
             return;
         }
 
-        if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-            selectionService.setPosition(event.getPlayer(), true, event.getClickedBlock().getLocation());
-            configService.send(event.getPlayer(), "status.selection_pos1",
-                "x", Integer.toString(event.getClickedBlock().getX()),
-                "y", Integer.toString(event.getClickedBlock().getY()),
-                "z", Integer.toString(event.getClickedBlock().getZ())
-            );
-        } else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-            selectionService.setPosition(event.getPlayer(), false, event.getClickedBlock().getLocation());
-            configService.send(event.getPlayer(), "status.selection_pos2",
+        Action action = event.getAction();
+        if (action != Action.LEFT_CLICK_BLOCK && action != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        boolean selectionChanged = true;
+        if (action == Action.LEFT_CLICK_BLOCK) {
+            int point = selectionService.addPosition(event.getPlayer(), event.getClickedBlock().getLocation());
+            configService.send(event.getPlayer(), "status.selection_point",
+                "point", Integer.toString(point),
                 "x", Integer.toString(event.getClickedBlock().getX()),
                 "y", Integer.toString(event.getClickedBlock().getY()),
                 "z", Integer.toString(event.getClickedBlock().getZ())
             );
         } else {
-            return;
+            int point = selectionService.removePosition(event.getPlayer(), event.getClickedBlock().getLocation());
+            if (point == 0) {
+                selectionChanged = false;
+                configService.send(event.getPlayer(), "errors.selection_point_missing");
+            } else {
+                configService.send(event.getPlayer(), "status.selection_point_removed",
+                    "point", Integer.toString(point),
+                    "x", Integer.toString(event.getClickedBlock().getX()),
+                    "y", Integer.toString(event.getClickedBlock().getY()),
+                    "z", Integer.toString(event.getClickedBlock().getZ())
+                );
+            }
         }
 
-        if (selectionService.hasCompleteSelection(event.getPlayer())) {
+        if (selectionChanged && selectionService.hasCompleteSelection(event.getPlayer())) {
             if (selectionService.hasWorldMismatch(event.getPlayer())) {
                 configService.send(event.getPlayer(), "errors.selection_world_mismatch");
             } else {

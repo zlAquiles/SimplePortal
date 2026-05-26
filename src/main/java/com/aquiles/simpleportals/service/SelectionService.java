@@ -6,6 +6,8 @@ import com.aquiles.simpleportals.data.Cuboid;
 import com.aquiles.simpleportals.data.SelectionSession;
 import com.aquiles.simpleportals.util.ServerCompatibility;
 import com.aquiles.simpleportals.util.Text;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -26,6 +28,14 @@ import org.joml.Vector3f;
 public final class SelectionService {
 
     private static final Color TRANSPARENT = Color.fromARGB(0, 0, 0, 0);
+    private static final Color[] MARKER_COLORS = {
+        Color.RED,
+        Color.AQUA,
+        Color.YELLOW,
+        Color.LIME,
+        Color.FUCHSIA,
+        Color.ORANGE
+    };
     private static final Particle DUST_PARTICLE = resolveDustParticle();
     private static final long SELECTION_TIMEOUT_MILLIS = 60_000L;
 
@@ -62,7 +72,7 @@ public final class SelectionService {
         leftovers.values().forEach(item -> player.getWorld().dropItemNaturally(player.getLocation(), item));
     }
 
-    public void setPosition(Player player, boolean first, Location location) {
+    public int addPosition(Player player, Location location) {
         Location snapped = new Location(
             location.getWorld(),
             location.getBlockX(),
@@ -70,32 +80,52 @@ public final class SelectionService {
             location.getBlockZ()
         );
         SelectionSession session = getSession(player);
-        if (first) {
-            session.setPos1(snapped);
-        } else {
-            session.setPos2(snapped);
+        int positionNumber = session.addPosition(snapped);
+        session.touchSelection();
+        ensurePreviewTask(player);
+        updateDisplays(player, positionNumber, snapped);
+        return positionNumber;
+    }
+
+    public int removePosition(Player player, Location location) {
+        Location snapped = new Location(
+            location.getWorld(),
+            location.getBlockX(),
+            location.getBlockY(),
+            location.getBlockZ()
+        );
+        SelectionSession session = getSession(player);
+        int removedPosition = session.removePosition(snapped);
+        if (removedPosition == 0) {
+            return 0;
         }
         session.touchSelection();
         ensurePreviewTask(player);
-        updateDisplays(player, first, snapped);
+        removeMarkerGroup(player.getUniqueId(), removedPosition);
+        updateDisplays(player, session.getPositions());
+        return removedPosition;
     }
 
     public boolean hasCompleteSelection(Player player) {
         SelectionSession session = getSession(player);
-        return session.getPos1() != null && session.getPos2() != null;
+        return session.positionCount() >= 2;
     }
 
     public boolean hasWorldMismatch(Player player) {
         SelectionSession session = getSession(player);
-        return hasCompleteSelection(player) && !session.getPos1().getWorld().getName().equalsIgnoreCase(session.getPos2().getWorld().getName());
+        return session.hasWorldMismatch();
     }
 
     public Optional<Cuboid> getSelectionCuboid(Player player) {
         SelectionSession session = getSession(player);
-        if (session.getPos1() == null || session.getPos2() == null || hasWorldMismatch(player)) {
+        if (session.positionCount() < 2 || hasWorldMismatch(player)) {
             return Optional.empty();
         }
-        return Optional.of(Cuboid.fromLocations(session.getPos1(), session.getPos2()));
+        return Optional.of(Cuboid.fromLocations(session.getPositions()));
+    }
+
+    public List<Location> getSelectionPositions(Player player) {
+        return getSession(player).getPositions();
     }
 
     public void completeSelection(Player player) {
@@ -108,8 +138,9 @@ public final class SelectionService {
 
     public void hideMarkersFrom(Player viewer) {
         for (SelectionMarkers markers : holograms.values()) {
-            hideGroup(viewer, markers.pos1);
-            hideGroup(viewer, markers.pos2);
+            for (MarkerGroup group : markers.groups) {
+                hideGroup(viewer, group);
+            }
         }
     }
 
@@ -135,12 +166,7 @@ public final class SelectionService {
                 continue;
             }
             if (!compatibility.isFolia()) {
-                if (session.getPos1() != null) {
-                    updateDisplays(player, true, session.getPos1());
-                }
-                if (session.getPos2() != null) {
-                    updateDisplays(player, false, session.getPos2());
-                }
+                updateDisplays(player, session.getPositions());
                 continue;
             }
             if (session.isSelectorEnabled()) {
@@ -195,15 +221,14 @@ public final class SelectionService {
             expireSelection(player, session);
             return;
         }
-        if (session.getPos1() != null) {
-            renderMarker(player, session.getPos1(), Color.RED);
+        List<Location> positions = session.getPositions();
+        for (int index = 0; index < positions.size(); index++) {
+            renderMarker(player, positions.get(index), markerColor(index + 1));
         }
-        if (session.getPos2() != null) {
-            renderMarker(player, session.getPos2(), Color.AQUA);
-        }
-        if (session.getPos1() != null && session.getPos2() != null
-            && session.getPos1().getWorld().getName().equalsIgnoreCase(session.getPos2().getWorld().getName())) {
-            renderBox(player, Cuboid.fromLocations(session.getPos1(), session.getPos2()));
+        if (positions.size() == 2 && sameWorld(positions)) {
+            renderBox(player, Cuboid.fromLocations(positions));
+        } else if (positions.size() > 2 && sameWorld(positions)) {
+            renderPath(player, positions);
         }
     }
 
@@ -217,16 +242,16 @@ public final class SelectionService {
         configService.send(player, "status.selection_expired");
     }
 
-    private void updateDisplays(Player owner, boolean first, Location blockLocation) {
+    private void updateDisplays(Player owner, int positionNumber, Location blockLocation) {
         if (!configService.hologramsEnabled()) {
             return;
         }
         SelectionMarkers markers = holograms.computeIfAbsent(owner.getUniqueId(), ignored -> new SelectionMarkers());
-        MarkerGroup group = first ? markers.pos1 : markers.pos2;
+        MarkerGroup group = markers.group(positionNumber);
         String panelText = buildPanelText();
-        String posText = Text.colorize(configService.hologramText(first));
+        String posText = Text.colorize(configService.hologramText(positionNumber));
         String coordText = buildCoordinateText(blockLocation);
-        Color background = configService.hologramBackground(first);
+        Color background = configService.hologramBackground(positionNumber);
 
         for (MarkerFace face : MarkerFace.values()) {
             int index = face.ordinal();
@@ -267,6 +292,15 @@ public final class SelectionService {
             configService.hologramCoordsOffsetZ()
         );
         group.coords = updateCoordinateDisplay(owner, group.coords, coordsLocation, coordText);
+    }
+
+    private void updateDisplays(Player owner, List<Location> positions) {
+        if (!configService.hologramsEnabled()) {
+            return;
+        }
+        for (int index = 0; index < positions.size(); index++) {
+            updateDisplays(owner, index + 1, positions.get(index));
+        }
     }
 
     private boolean shouldShowPosLabel(MarkerFace face) {
@@ -506,8 +540,23 @@ public final class SelectionService {
         if (markers == null) {
             return;
         }
-        removeGroup(markers.pos1);
-        removeGroup(markers.pos2);
+        for (MarkerGroup group : markers.groups) {
+            removeGroup(group);
+        }
+    }
+
+    private void removeMarkerGroup(UUID ownerId, int positionNumber) {
+        SelectionMarkers markers = holograms.get(ownerId);
+        if (markers == null) {
+            return;
+        }
+        MarkerGroup removed = markers.remove(positionNumber);
+        if (removed != null) {
+            removeGroup(removed);
+        }
+        if (markers.groups.isEmpty()) {
+            holograms.remove(ownerId);
+        }
     }
 
     private void removeGroup(MarkerGroup group) {
@@ -532,6 +581,26 @@ public final class SelectionService {
         double centerY = location.getBlockY() + 1.1D;
         double centerZ = location.getBlockZ() + 0.5D;
         player.spawnParticle(DUST_PARTICLE, centerX, centerY, centerZ, 6, 0.18D, 0.18D, 0.18D, 0.0D, options);
+    }
+
+    private void renderPath(Player player, List<Location> positions) {
+        Particle.DustOptions options = new Particle.DustOptions(Color.fromRGB(255, 170, 0), 0.9F);
+        int samplesPerEdge = Math.max(2, configService.previewMaxEdgePoints() / positions.size());
+        for (int index = 0; index < positions.size(); index++) {
+            Location current = positions.get(index);
+            Location next = positions.get((index + 1) % positions.size());
+            spawnEdge(
+                player,
+                current.getBlockX() + 0.5D,
+                current.getBlockY() + 0.5D,
+                current.getBlockZ() + 0.5D,
+                next.getBlockX() + 0.5D,
+                next.getBlockY() + 0.5D,
+                next.getBlockZ() + 0.5D,
+                samplesPerEdge,
+                options
+            );
+        }
     }
 
     private void renderBox(Player player, Cuboid cuboid) {
@@ -592,9 +661,35 @@ public final class SelectionService {
         }
     }
 
+    private Color markerColor(int positionNumber) {
+        return MARKER_COLORS[Math.floorMod(positionNumber - 1, MARKER_COLORS.length)];
+    }
+
+    private boolean sameWorld(List<Location> positions) {
+        if (positions.isEmpty() || positions.get(0).getWorld() == null) {
+            return false;
+        }
+        String worldName = positions.get(0).getWorld().getName();
+        return positions.stream().allMatch(position -> position.getWorld() != null && position.getWorld().getName().equalsIgnoreCase(worldName));
+    }
+
     private static final class SelectionMarkers {
-        private final MarkerGroup pos1 = new MarkerGroup();
-        private final MarkerGroup pos2 = new MarkerGroup();
+        private final List<MarkerGroup> groups = new ArrayList<>();
+
+        private MarkerGroup group(int positionNumber) {
+            while (groups.size() < positionNumber) {
+                groups.add(new MarkerGroup());
+            }
+            return groups.get(positionNumber - 1);
+        }
+
+        private MarkerGroup remove(int positionNumber) {
+            int index = positionNumber - 1;
+            if (index < 0 || index >= groups.size()) {
+                return null;
+            }
+            return groups.remove(index);
+        }
     }
 
     private static final class MarkerGroup {

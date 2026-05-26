@@ -24,6 +24,12 @@ public final class ConfigService {
 
     private static final Color POS1_HOLOGRAM_COLOR = Color.fromARGB(0x66, 0xFF, 0x55, 0x55);
     private static final Color POS2_HOLOGRAM_COLOR = Color.fromARGB(0x66, 0x33, 0xFF, 0xFF);
+    private static final Color[] EXTRA_HOLOGRAM_COLORS = {
+        Color.fromARGB(0x66, 0xFF, 0xDD, 0x33),
+        Color.fromARGB(0x66, 0x55, 0xFF, 0x55),
+        Color.fromARGB(0x66, 0xFF, 0x55, 0xFF),
+        Color.fromARGB(0x66, 0xFF, 0xAA, 0x33)
+    };
 
     private static final boolean HOLOGRAMS_ENABLED = true;
     private static final String POS1_TEXT = "&cPOS 1";
@@ -260,8 +266,28 @@ public final class ConfigService {
         return first ? POS1_TEXT : POS2_TEXT;
     }
 
+    public String hologramText(int positionNumber) {
+        if (positionNumber == 1) {
+            return POS1_TEXT;
+        }
+        if (positionNumber == 2) {
+            return POS2_TEXT;
+        }
+        return "&ePOS " + positionNumber;
+    }
+
     public Color hologramBackground(boolean first) {
         return first ? POS1_HOLOGRAM_COLOR : POS2_HOLOGRAM_COLOR;
+    }
+
+    public Color hologramBackground(int positionNumber) {
+        if (positionNumber == 1) {
+            return POS1_HOLOGRAM_COLOR;
+        }
+        if (positionNumber == 2) {
+            return POS2_HOLOGRAM_COLOR;
+        }
+        return EXTRA_HOLOGRAM_COLORS[Math.floorMod(positionNumber - 3, EXTRA_HOLOGRAM_COLORS.length)];
     }
 
     public double hologramFaceOffset() {

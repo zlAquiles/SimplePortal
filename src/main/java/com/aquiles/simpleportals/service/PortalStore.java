@@ -1,6 +1,7 @@
 package com.aquiles.simpleportals.service;
 
 import com.aquiles.simpleportals.config.ConfigService;
+import com.aquiles.simpleportals.data.BlockPoint;
 import com.aquiles.simpleportals.data.Cuboid;
 import com.aquiles.simpleportals.data.DestinationDefinition;
 import com.aquiles.simpleportals.data.PortalDefinition;
@@ -86,18 +87,19 @@ public final class PortalStore {
                 if (triggerBlocks.isEmpty()) {
                     PortalTrigger.fromInput(configService.defaultTriggerName()).ifPresent(triggerBlocks::add);
                 }
+                Cuboid region = new Cuboid(
+                    section.getString("world", "world"),
+                    min.getInt("x"),
+                    min.getInt("y"),
+                    min.getInt("z"),
+                    max.getInt("x"),
+                    max.getInt("y"),
+                    max.getInt("z")
+                );
                 PortalDefinition portal = new PortalDefinition(
                     name,
                     section.getString("destination", ""),
-                    new Cuboid(
-                        section.getString("world", "world"),
-                        min.getInt("x"),
-                        min.getInt("y"),
-                        min.getInt("z"),
-                        max.getInt("x"),
-                        max.getInt("y"),
-                        max.getInt("z")
-                    ),
+                    region,
                     section.getBoolean("enabled", true),
                     triggerBlocks,
                     Math.max(0, section.getInt("settings.cooldown-seconds", configService.defaultCooldownSeconds())),
@@ -139,7 +141,8 @@ public final class PortalStore {
                             section.getStringList("actions.commands.list")
                         ),
                         loadEffectsAction(section)
-                    )
+                    ),
+                    loadBlockPoints(section)
                 );
                 portals.put(normalize(name), portal);
             }
@@ -179,6 +182,9 @@ public final class PortalStore {
             section.set("max.x", portal.region().maxX());
             section.set("max.y", portal.region().maxY());
             section.set("max.z", portal.region().maxZ());
+            if (portal.hasDiscreteBlocks()) {
+                section.set("blocks", serializeBlockPoints(portal.blocks()));
+            }
             section.set("settings.cooldown-seconds", portal.cooldownSeconds());
             section.set("settings.required-permission", portal.requiredPermission());
             section.set("conditions.enabled", portal.conditions().enabled());
@@ -260,7 +266,8 @@ public final class PortalStore {
             existing.cooldownSeconds(),
             existing.requiredPermission(),
             existing.conditions(),
-            existing.actions()
+            existing.actions(),
+            existing.blocks()
         );
         portals.put(key, updated);
         rebuildIndex();
@@ -330,7 +337,7 @@ public final class PortalStore {
         }
         return getPortalsInChunk(block.getLocation()).stream()
             .filter(PortalDefinition::enabled)
-            .filter(portal -> portal.region().contains(block))
+            .filter(portal -> portal.contains(block))
             .anyMatch(portal -> portal.triggerBlocks().stream().anyMatch(PortalTrigger::isFluid));
     }
 
@@ -340,7 +347,7 @@ public final class PortalStore {
         }
         return getPortalsInChunk(block.getLocation()).stream()
             .filter(PortalDefinition::enabled)
-            .filter(portal -> portal.region().contains(block))
+            .filter(portal -> portal.contains(block))
             .anyMatch(portal -> portal.triggerBlocks().contains(trigger));
     }
 
@@ -350,7 +357,7 @@ public final class PortalStore {
         }
         return getPortalsInChunk(location).stream()
             .filter(PortalDefinition::enabled)
-            .filter(portal -> portal.region().contains(location))
+            .filter(portal -> portal.contains(location))
             .anyMatch(portal -> portal.triggerBlocks().contains(trigger));
     }
 
@@ -398,6 +405,30 @@ public final class PortalStore {
         return serialized;
     }
 
+    private List<BlockPoint> loadBlockPoints(ConfigurationSection section) {
+        List<BlockPoint> blocks = new ArrayList<>();
+        for (Map<?, ?> rawEntry : section.getMapList("blocks")) {
+            blocks.add(new BlockPoint(
+                asInt(rawEntry.get("x"), 0),
+                asInt(rawEntry.get("y"), 0),
+                asInt(rawEntry.get("z"), 0)
+            ));
+        }
+        return blocks;
+    }
+
+    private List<Map<String, Object>> serializeBlockPoints(List<BlockPoint> blocks) {
+        List<Map<String, Object>> serialized = new ArrayList<>();
+        for (BlockPoint block : blocks) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("x", block.x());
+            entry.put("y", block.y());
+            entry.put("z", block.z());
+            serialized.add(entry);
+        }
+        return serialized;
+    }
+
     private int asInt(Object value, int fallback) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -432,11 +463,26 @@ public final class PortalStore {
                 portal.region().worldName().toLowerCase(Locale.ROOT),
                 ignored -> new LinkedHashMap<>()
             );
+            if (portal.hasDiscreteBlocks()) {
+                for (BlockPoint block : portal.blocks()) {
+                    int chunkX = Math.floorDiv(block.x(), 16);
+                    int chunkZ = Math.floorDiv(block.z(), 16);
+                    addPortalToChunkIndex(worldIndex, chunkX, chunkZ, portal);
+                }
+                continue;
+            }
             for (int chunkX = portal.region().minChunkX(); chunkX <= portal.region().maxChunkX(); chunkX++) {
                 for (int chunkZ = portal.region().minChunkZ(); chunkZ <= portal.region().maxChunkZ(); chunkZ++) {
-                    worldIndex.computeIfAbsent(chunkKey(chunkX, chunkZ), ignored -> new ArrayList<>()).add(portal);
+                    addPortalToChunkIndex(worldIndex, chunkX, chunkZ, portal);
                 }
             }
+        }
+    }
+
+    private void addPortalToChunkIndex(Map<Long, List<PortalDefinition>> worldIndex, int chunkX, int chunkZ, PortalDefinition portal) {
+        List<PortalDefinition> portalsInChunk = worldIndex.computeIfAbsent(chunkKey(chunkX, chunkZ), ignored -> new ArrayList<>());
+        if (!portalsInChunk.contains(portal)) {
+            portalsInChunk.add(portal);
         }
     }
 

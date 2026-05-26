@@ -2,6 +2,7 @@ package com.aquiles.simpleportals.command;
 
 import com.aquiles.simpleportals.SimplePortalsPlugin;
 import com.aquiles.simpleportals.config.ConfigService;
+import com.aquiles.simpleportals.data.BlockPoint;
 import com.aquiles.simpleportals.data.Cuboid;
 import com.aquiles.simpleportals.data.DestinationDefinition;
 import com.aquiles.simpleportals.data.PortalDefinition;
@@ -12,10 +13,13 @@ import com.aquiles.simpleportals.service.TeleportService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.bukkit.Bukkit;
@@ -168,6 +172,7 @@ public final class PortalCommand implements CommandExecutor, TabCompleter {
         String portalName = requestedPortalName == null || requestedPortalName.isBlank()
             ? portalStore.nextPortalName()
             : requestedPortalName;
+        List<BlockPoint> portalBlocks = buildShapedPortalBlocks(selectionService.getSelectionPositions(player));
 
         PortalDefinition portal = new PortalDefinition(
             portalName,
@@ -178,7 +183,8 @@ public final class PortalCommand implements CommandExecutor, TabCompleter {
             configService.defaultCooldownSeconds(),
             "",
             PortalDefinition.Conditions.disabled(),
-            PortalDefinition.Actions.defaults()
+            PortalDefinition.Actions.defaults(),
+            portalBlocks
         );
         if (!portalStore.createPortal(portal)) {
             configService.send(player, "errors.portal_exists", "portal", portal.name());
@@ -186,7 +192,7 @@ public final class PortalCommand implements CommandExecutor, TabCompleter {
         }
 
         if (configService.replaceAirEnabled() && !triggerBlocks.isEmpty()) {
-            replaceAirWithTrigger(player, cuboid, triggerBlocks.get(0));
+            replaceAirWithTrigger(player, portal, triggerBlocks.get(0));
         }
 
         selectionService.completeSelection(player);
@@ -470,37 +476,118 @@ public final class PortalCommand implements CommandExecutor, TabCompleter {
             return;
         }
         Material material = newTrigger.placementMaterial();
-        for (int x = portal.region().minX(); x <= portal.region().maxX(); x++) {
-            for (int y = portal.region().minY(); y <= portal.region().maxY(); y++) {
-                for (int z = portal.region().minZ(); z <= portal.region().maxZ(); z++) {
-                    Block block = world.getBlockAt(x, y, z);
-                    if (!shouldReplacePortalBlock(block, portal.triggerBlocks())) {
-                        continue;
-                    }
-                    block.setType(material, false);
-                }
+        forEachPortalBlock(world, portal, block -> {
+            if (!shouldReplacePortalBlock(block, portal.triggerBlocks())) {
+                return;
             }
-        }
+            block.setType(material, false);
+        });
     }
 
     private boolean shouldReplacePortalBlock(Block block, List<PortalTrigger> currentTriggers) {
         return block.isEmpty() || currentTriggers.stream().anyMatch(trigger -> trigger.matches(block));
     }
 
-    private void replaceAirWithTrigger(Player player, Cuboid cuboid, PortalTrigger trigger) {
+    private void replaceAirWithTrigger(Player player, PortalDefinition portal, PortalTrigger trigger) {
         World world = player.getWorld();
-        if (!world.getName().equalsIgnoreCase(cuboid.worldName())) {
+        if (!world.getName().equalsIgnoreCase(portal.region().worldName())) {
             return;
         }
         Material material = trigger.placementMaterial();
+        forEachPortalBlock(world, portal, block -> {
+            if (!block.isEmpty()) {
+                return;
+            }
+            block.setType(material, false);
+        });
+    }
+
+    private List<BlockPoint> buildShapedPortalBlocks(List<org.bukkit.Location> selectedLocations) {
+        List<BlockPoint> selectedBlocks = selectedLocations.stream()
+            .map(BlockPoint::from)
+            .distinct()
+            .toList();
+        if (selectedBlocks.size() <= 2) {
+            return List.of();
+        }
+        return fillSelectedShape(selectedBlocks);
+    }
+
+    private List<BlockPoint> fillSelectedShape(List<BlockPoint> selectedBlocks) {
+        ShapeProjection projection = ShapeProjection.from(selectedBlocks);
+        if (projection == null) {
+            return List.of();
+        }
+
+        Set<BlockPoint> blocks = new LinkedHashSet<>(selectedBlocks);
+        int minU = selectedBlocks.stream().mapToInt(projection::u).min().orElse(0);
+        int maxU = selectedBlocks.stream().mapToInt(projection::u).max().orElse(0);
+        int minV = selectedBlocks.stream().mapToInt(projection::v).min().orElse(0);
+        int maxV = selectedBlocks.stream().mapToInt(projection::v).max().orElse(0);
+
+        for (int u = minU; u <= maxU; u++) {
+            for (int v = minV; v <= maxV; v++) {
+                if (isInsideOrOnShape(u, v, selectedBlocks, projection)) {
+                    blocks.add(projection.block(u, v));
+                }
+            }
+        }
+        return new ArrayList<>(blocks);
+    }
+
+    private boolean isInsideOrOnShape(int u, int v, List<BlockPoint> shape, ShapeProjection projection) {
+        if (isOnShapeBoundary(u, v, shape, projection)) {
+            return true;
+        }
+
+        boolean inside = false;
+        for (int current = 0, previous = shape.size() - 1; current < shape.size(); previous = current++) {
+            double currentU = projection.u(shape.get(current));
+            double currentV = projection.v(shape.get(current));
+            double previousU = projection.u(shape.get(previous));
+            double previousV = projection.v(shape.get(previous));
+            boolean crosses = (currentV > v) != (previousV > v);
+            if (crosses && u < ((previousU - currentU) * (v - currentV) / (previousV - currentV)) + currentU) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    private boolean isOnShapeBoundary(int u, int v, List<BlockPoint> shape, ShapeProjection projection) {
+        for (int index = 0; index < shape.size(); index++) {
+            BlockPoint from = shape.get(index);
+            BlockPoint to = shape.get((index + 1) % shape.size());
+            if (isPointOnSegment(u, v, projection.u(from), projection.v(from), projection.u(to), projection.v(to))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPointOnSegment(double u, double v, double fromU, double fromV, double toU, double toV) {
+        double cross = ((u - fromU) * (toV - fromV)) - ((v - fromV) * (toU - fromU));
+        if (Math.abs(cross) > 0.000001D) {
+            return false;
+        }
+        return u >= Math.min(fromU, toU)
+            && u <= Math.max(fromU, toU)
+            && v >= Math.min(fromV, toV)
+            && v <= Math.max(fromV, toV);
+    }
+
+    private void forEachPortalBlock(World world, PortalDefinition portal, Consumer<Block> consumer) {
+        if (portal.hasDiscreteBlocks()) {
+            for (BlockPoint blockPoint : portal.blocks()) {
+                consumer.accept(world.getBlockAt(blockPoint.x(), blockPoint.y(), blockPoint.z()));
+            }
+            return;
+        }
+        Cuboid cuboid = portal.region();
         for (int x = cuboid.minX(); x <= cuboid.maxX(); x++) {
             for (int y = cuboid.minY(); y <= cuboid.maxY(); y++) {
                 for (int z = cuboid.minZ(); z <= cuboid.maxZ(); z++) {
-                    org.bukkit.block.Block block = world.getBlockAt(x, y, z);
-                    if (!block.isEmpty()) {
-                        continue;
-                    }
-                    block.setType(material, false);
+                    consumer.accept(world.getBlockAt(x, y, z));
                 }
             }
         }
@@ -589,5 +676,93 @@ public final class PortalCommand implements CommandExecutor, TabCompleter {
         return suggestions.stream()
             .filter(value -> value.toLowerCase(Locale.ROOT).startsWith(loweredToken))
             .toList();
+    }
+
+    private enum ShapeProjection {
+        X {
+            @Override
+            int fixed(BlockPoint block) {
+                return block.x();
+            }
+
+            @Override
+            int u(BlockPoint block) {
+                return block.y();
+            }
+
+            @Override
+            int v(BlockPoint block) {
+                return block.z();
+            }
+
+            @Override
+            BlockPoint block(int u, int v) {
+                return new BlockPoint(fixedValue, u, v);
+            }
+        },
+        Y {
+            @Override
+            int fixed(BlockPoint block) {
+                return block.y();
+            }
+
+            @Override
+            int u(BlockPoint block) {
+                return block.x();
+            }
+
+            @Override
+            int v(BlockPoint block) {
+                return block.z();
+            }
+
+            @Override
+            BlockPoint block(int u, int v) {
+                return new BlockPoint(u, fixedValue, v);
+            }
+        },
+        Z {
+            @Override
+            int fixed(BlockPoint block) {
+                return block.z();
+            }
+
+            @Override
+            int u(BlockPoint block) {
+                return block.x();
+            }
+
+            @Override
+            int v(BlockPoint block) {
+                return block.y();
+            }
+
+            @Override
+            BlockPoint block(int u, int v) {
+                return new BlockPoint(u, v, fixedValue);
+            }
+        };
+
+        protected int fixedValue;
+
+        abstract int fixed(BlockPoint block);
+
+        abstract int u(BlockPoint block);
+
+        abstract int v(BlockPoint block);
+
+        abstract BlockPoint block(int u, int v);
+
+        static ShapeProjection from(List<BlockPoint> blocks) {
+            ShapeProjection projection = Arrays.stream(values())
+                .filter(axis -> blocks.stream().mapToInt(axis::fixed).distinct().count() == 1L)
+                .findFirst()
+                .orElse(null);
+            if (projection == null) {
+                return null;
+            }
+            projection.fixedValue = projection.fixed(blocks.get(0));
+            return projection;
+        }
     }
 }

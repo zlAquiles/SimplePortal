@@ -1,11 +1,12 @@
 # SimplePortals
 
-SimplePortals is a modern portal plugin for Paper-compatible Minecraft servers focused on fast cuboid portal creation, local and proxy destinations, configurable portal actions, and Folia-aware execution.
+SimplePortals is a modern portal plugin for Paper-compatible Minecraft servers focused on fast cuboid and shaped portal creation, local and proxy destinations, configurable portal actions, and Folia-aware execution.
 
 ## Features
 
-- Cuboid portal creation with a selector wand
+- Cuboid and shaped portal creation with a selector wand
 - Visual selection preview with particles and hologram-style markers
+- Two selected points create a cuboid; three or more selected points create an exact block shape
 - Local destinations and proxy destinations
 - Portal actions such as messages, titles, sounds, bossbars, commands, and potion effects
 - MiniMessage and legacy color support in `messages.yml` and `portals.yml`

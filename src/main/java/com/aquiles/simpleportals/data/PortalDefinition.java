@@ -13,26 +13,72 @@ public record PortalDefinition(
     int cooldownSeconds,
     String requiredPermission,
     Conditions conditions,
-    Actions actions
+    Actions actions,
+    List<BlockPoint> blocks
 ) {
+
+    public PortalDefinition(
+        String name,
+        String destinationName,
+        Cuboid region,
+        boolean enabled,
+        List<PortalTrigger> triggerBlocks,
+        int cooldownSeconds,
+        String requiredPermission,
+        Conditions conditions,
+        Actions actions
+    ) {
+        this(name, destinationName, region, enabled, triggerBlocks, cooldownSeconds, requiredPermission, conditions, actions, List.of());
+    }
 
     public PortalDefinition {
         triggerBlocks = List.copyOf(triggerBlocks);
         requiredPermission = requiredPermission == null ? "" : requiredPermission;
         conditions = conditions == null ? Conditions.disabled() : conditions;
         actions = actions == null ? Actions.defaults() : actions;
+        blocks = List.copyOf(blocks == null ? List.of() : blocks);
     }
 
     public boolean matches(Location feet, Location head, Block feetBlock, Block headBlock) {
-        if (!enabled || (!region.contains(feet) && !region.contains(head))) {
+        if (!enabled || (!contains(feet) && !contains(head))) {
             return false;
         }
         return triggerBlocks.stream().anyMatch(trigger -> trigger.matches(feetBlock) || trigger.matches(headBlock));
     }
 
+    public boolean hasDiscreteBlocks() {
+        return !blocks.isEmpty();
+    }
+
+    public boolean contains(Location location) {
+        if (!hasDiscreteBlocks()) {
+            return region.contains(location);
+        }
+        if (location == null || location.getWorld() == null || !location.getWorld().getName().equalsIgnoreCase(region.worldName())) {
+            return false;
+        }
+        return blocks.contains(BlockPoint.from(location));
+    }
+
+    public boolean contains(Block block) {
+        if (!hasDiscreteBlocks()) {
+            return region.contains(block);
+        }
+        if (block == null || block.getWorld() == null || !block.getWorld().getName().equalsIgnoreCase(region.worldName())) {
+            return false;
+        }
+        return blocks.contains(BlockPoint.from(block));
+    }
+
     public double distanceSquared(Location location) {
         if (location == null || location.getWorld() == null || !location.getWorld().getName().equalsIgnoreCase(region.worldName())) {
             return Double.MAX_VALUE;
+        }
+        if (hasDiscreteBlocks()) {
+            return blocks.stream()
+                .mapToDouble(block -> block.distanceSquared(location))
+                .min()
+                .orElse(Double.MAX_VALUE);
         }
         return region.center(location.getWorld()).distanceSquared(location);
     }

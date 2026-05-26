@@ -1,5 +1,6 @@
 package com.aquiles.simpleportals.data;
 
+import java.util.List;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -31,6 +32,28 @@ public record Cuboid(String worldName, int minX, int minY, int minZ, int maxX, i
             second.getBlockY(),
             second.getBlockZ()
         );
+    }
+
+    public static Cuboid fromLocations(List<Location> locations) {
+        if (locations == null || locations.isEmpty()) {
+            throw new IllegalArgumentException("At least one location is required.");
+        }
+        Location first = locations.get(0);
+        int minX = first.getBlockX();
+        int minY = first.getBlockY();
+        int minZ = first.getBlockZ();
+        int maxX = first.getBlockX();
+        int maxY = first.getBlockY();
+        int maxZ = first.getBlockZ();
+        for (Location location : locations) {
+            minX = Math.min(minX, location.getBlockX());
+            minY = Math.min(minY, location.getBlockY());
+            minZ = Math.min(minZ, location.getBlockZ());
+            maxX = Math.max(maxX, location.getBlockX());
+            maxY = Math.max(maxY, location.getBlockY());
+            maxZ = Math.max(maxZ, location.getBlockZ());
+        }
+        return new Cuboid(first.getWorld().getName(), minX, minY, minZ, maxX, maxY, maxZ);
     }
 
     public boolean contains(Location location) {

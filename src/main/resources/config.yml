@@ -3,8 +3,10 @@ selector:
     material: GOLDEN_AXE
     name: "&6Portal Selector"
     lore:
-      - "&7Left click: set point 1"
-      - "&7Right click: set point 2"
+      - "&7Left click: add point"
+      - "&7Right click: remove point"
+      - "&72 points: cuboid portal"
+      - "&73+ points: shaped portal"
       - ""
       - "&8Used by SimplePortals"
   preview:
