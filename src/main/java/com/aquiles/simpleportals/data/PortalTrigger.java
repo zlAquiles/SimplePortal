@@ -13,6 +13,7 @@ public enum PortalTrigger {
     WATER,
     LAVA,
     AIR,
+    GLASS_PANE,
     NETHER_PORTAL,
     END_PORTAL,
     END_GATEWAY;
@@ -26,6 +27,7 @@ public enum PortalTrigger {
             case WATER -> type == Material.WATER || block.getBlockData() instanceof Waterlogged waterlogged && waterlogged.isWaterlogged();
             case LAVA -> type == Material.LAVA;
             case AIR -> type == Material.AIR || type == Material.CAVE_AIR || type == Material.VOID_AIR;
+            case GLASS_PANE -> isGlassPane(type);
             case NETHER_PORTAL -> type == Material.NETHER_PORTAL;
             case END_PORTAL -> type == Material.END_PORTAL;
             case END_GATEWAY -> type == Material.END_GATEWAY;
@@ -41,10 +43,15 @@ public enum PortalTrigger {
             case WATER -> Material.WATER;
             case LAVA -> Material.LAVA;
             case AIR -> Material.AIR;
+            case GLASS_PANE -> Material.GLASS_PANE;
             case NETHER_PORTAL -> Material.NETHER_PORTAL;
             case END_PORTAL -> Material.END_PORTAL;
             case END_GATEWAY -> Material.END_GATEWAY;
         };
+    }
+
+    private boolean isGlassPane(Material material) {
+        return material == Material.GLASS_PANE || material.name().endsWith("_STAINED_GLASS_PANE");
     }
 
     public static Optional<PortalTrigger> fromInput(String input) {

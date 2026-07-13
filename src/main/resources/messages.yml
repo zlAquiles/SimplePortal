@@ -32,7 +32,7 @@ errors:
   cooldown: "&cYou must wait &f%seconds%s &cbefore using &f%portal%&c again."
   destination_world_missing: "&cThe world for destination &f%destination% &cis not loaded."
   proxy_connect_failed: "&cThe proxy destination could not be reached."
-  create_syntax: "&cUsage: /portal create desti:<destination> [block:<WATER|LAVA|AIR|NETHER_PORTAL|END_PORTAL|END_GATEWAY>]"
+  create_syntax: "&cUsage: /portal create desti:<destination> [block:<WATER|LAVA|AIR|GLASS_PANE|NETHER_PORTAL|END_PORTAL|END_GATEWAY>]"
 status:
   wand_given: "&aYou received a selector wand. Select points, then run &f/portal create&a."
   selection_point: "&aPoint %point% set at &f%x% %y% %z%&a."

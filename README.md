@@ -10,7 +10,7 @@ SimplePortals is a modern portal plugin for Paper-compatible Minecraft servers f
 - Local destinations and proxy destinations
 - Portal actions such as messages, titles, sounds, bossbars, commands, and potion effects
 - MiniMessage and legacy color support in `messages.yml` and `portals.yml`
-- Trigger block support for `WATER`, `LAVA`, `AIR`, `NETHER_PORTAL`, `END_PORTAL`, and `END_GATEWAY`
+- Trigger block support for `WATER`, `LAVA`, `AIR`, `GLASS_PANE`, `NETHER_PORTAL`, `END_PORTAL`, and `END_GATEWAY`
 - Chunk-based portal lookup for efficient movement checks
 - Folia-aware scheduling and teleport handling
 - Developer API included

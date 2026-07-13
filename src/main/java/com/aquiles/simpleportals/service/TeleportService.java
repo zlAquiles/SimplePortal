@@ -12,6 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.time.Duration;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +32,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.BoundingBox;
 
 public final class TeleportService {
 
@@ -59,8 +61,9 @@ public final class TeleportService {
         Block feet = to.getBlock();
         Location headLocation = to.clone().add(0.0D, 1.0D, 0.0D);
         Block head = headLocation.getBlock();
-        for (PortalDefinition portal : portalStore.getPortalsInChunk(to)) {
-            if (portal.matches(to, headLocation, feet, head) && usePortal(player, portal)) {
+        List<Block> touchedBlocks = touchedBlocks(player);
+        for (PortalDefinition portal : candidatePortals(to, touchedBlocks)) {
+            if ((portal.matches(to, headLocation, feet, head) || matchesTouchedBlock(portal, touchedBlocks)) && usePortal(player, portal)) {
                 return;
             }
         }
@@ -170,6 +173,51 @@ public final class TeleportService {
         reentryProtection.clear();
         portalCooldowns.clear();
         pendingTeleports.clear();
+    }
+
+    private Set<PortalDefinition> candidatePortals(Location location, List<Block> touchedBlocks) {
+        Set<PortalDefinition> portals = new LinkedHashSet<>(portalStore.getPortalsInChunk(location));
+        for (Block block : touchedBlocks) {
+            portals.addAll(portalStore.getPortalsInChunk(block.getLocation()));
+        }
+        return portals;
+    }
+
+    private boolean matchesTouchedBlock(PortalDefinition portal, List<Block> touchedBlocks) {
+        for (Block block : touchedBlocks) {
+            if (!portal.contains(block)) {
+                continue;
+            }
+            if (portal.triggerBlocks().stream().anyMatch(trigger -> trigger.matches(block))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private List<Block> touchedBlocks(Player player) {
+        World world = player.getWorld();
+        BoundingBox box = player.getBoundingBox().expand(0.08D, 0.05D, 0.08D);
+        int minX = blockCoordinate(box.getMinX());
+        int maxX = blockCoordinate(box.getMaxX());
+        int minY = blockCoordinate(box.getMinY());
+        int maxY = blockCoordinate(box.getMaxY());
+        int minZ = blockCoordinate(box.getMinZ());
+        int maxZ = blockCoordinate(box.getMaxZ());
+        List<Block> blocks = new java.util.ArrayList<>();
+
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                for (int z = minZ; z <= maxZ; z++) {
+                    blocks.add(world.getBlockAt(x, y, z));
+                }
+            }
+        }
+        return blocks;
+    }
+
+    private int blockCoordinate(double value) {
+        return (int) Math.floor(value);
     }
 
     private void completePortalUse(Player player, PortalDefinition portal, DestinationDefinition destination, long startedAt) {
