@@ -271,13 +271,27 @@ public final class TeleportService {
         if (!commandAction.enabled() || commandAction.commands().isEmpty()) {
             return;
         }
+        List<String> commands = new java.util.ArrayList<>();
         for (String rawCommand : commandAction.commands()) {
             String command = applyPlaceholders(rawCommand, player, portal, destination);
             if (command.isBlank()) {
                 continue;
             }
+            commands.add(Text.stripLeadingSlash(command));
+        }
+        if (commands.isEmpty()) {
+            return;
+        }
+        Runnable dispatch = () -> {
             CommandSender source = commandAction.runAsConsole() ? Bukkit.getConsoleSender() : player;
-            Bukkit.dispatchCommand(source, Text.stripLeadingSlash(command));
+            for (String command : commands) {
+                Bukkit.dispatchCommand(source, command);
+            }
+        };
+        if (commandAction.runAsConsole()) {
+            compatibility.runGlobal(dispatch);
+        } else {
+            compatibility.runPlayer(player, dispatch);
         }
     }
 
